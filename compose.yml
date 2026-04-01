@@ -1,0 +1,13 @@
+services:
+  enhancer:
+    build: .
+    container_name: video-enhancer
+    volumes:
+      - ./Video:/app/Video
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
