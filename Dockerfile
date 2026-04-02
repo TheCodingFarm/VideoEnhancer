@@ -1,23 +1,20 @@
-# Use an official NVIDIA PyTorch image as the base
 FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
 
-# Set the working directory
 WORKDIR /app
 
-# Install system dependencies for OpenCV
-RUN apt-get update && apt-get install -y libglib2.0-0 libsm6 libxext6 libxrender-dev ffmpeg && rm -rf /var/lib/apt/lists/*
+# Install system dependencies (these stay in the image)
 RUN apt-get update && apt-get install -y \
-     \
+    libglib2.0-0 libsm6 libxext6 libxrender-dev ffmpeg \
     && rm -rf /var/lib/apt/lists/*
-# Copy requirements and install
+
+# Copy requirements and the model
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY ./RealESRGAN_x4plus.pth .
+COPY Enhance.py .
 
-# Copy the script and the model weights (if you have them locally)
-COPY . .
+# Copy a startup script (we will create this next)
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Create the Video directory
-RUN mkdir -p Video
-
-# Run the script
-CMD ["python", "your_script_name.py"]
+# Set the entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
