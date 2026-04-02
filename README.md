@@ -1,28 +1,54 @@
 # 🎂 Birthday Video Enhancer (AI Powered)
 
-Boost your old memories to 4K using Real-ESRGAN and GFPGAN face restoration. Developed by **TheCodingFarm**.
+Restore and upscale your old birthday memories to 4K using state-of-the-art AI. This tool uses **Real-ESRGAN** for background upscaling and **GFPGAN** for crystal-clear face restoration.
+
+Optimized for performance by **TheCodingFarm** using a multi-threaded Python pipeline and Docker.
+
+---
 
 ## 🛠 Prerequisites
 
-Download the [RealESRGAN_x4plus.pth](https://release-assets.githubusercontent.com/github-production-release-asset/387326890/08f0e941-ebb7-48f0-9d6a-73e87b710e7e?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-04-01T16%3A36%3A17Z&rscd=attachment%3B+filename%3DRealESRGAN_x4plus.pth&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-04-01T15%3A36%3A12Z&ske=2026-04-01T16%3A36%3A17Z&sks=b&skv=2018-11-09&sig=deavgMAIF51Ck6%2BtWwl4gi9gp1whPGzA%2FaJYzdLOx1E%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc3NTA1OTU3MiwibmJmIjoxNzc1MDU3NzcyLCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.n9-Ks9IsbwaZ8CxsJIo687QqDyWHpqRdl9CsD9AEaV4&response-content-disposition=attachment%3B%20filename%3DRealESRGAN_x4plus.pth&response-content-type=application%2Foctet-stream) and place it in the same folder alongside Enhance.py file
-
-### For Windows Users:
+### **For Windows Users:**
 1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/).
-2. Ensure you have an **NVIDIA GPU** and the latest drivers installed.
-3. Open Docker Desktop settings -> Resources -> WSL Integration -> Enable your distro.
+2. Ensure you have an **NVIDIA GPU** and the latest [NVIDIA Drivers](https://www.nvidia.com/download/index.aspx) installed.
+3. Open Docker Desktop Settings -> **Resources** -> **WSL Integration** -> Enable your default distro (usually Ubuntu).
 
-### For Linux Users:
-1. Install [Docker](https://docs.docker.com/engine/install/).
+### **For Linux Users:**
+1. Install [Docker Engine](https://docs.docker.com/engine/install/).
 2. Install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 
 ---
 
 ## 🚀 How to Use
 
-1. **Download this folder** (or clone the repo).
-2. **Place your video** (mp4 or mkv) inside the folder named `Video`. 
-   * *Note: Ensure there is only ONE video in that folder at a time.*
-3. **Run the Enhancer**:
-   Open your terminal/command prompt in this folder and type:
-   ```bash
-   docker compose up --build
+1. **Download/Clone** this repository to your machine.
+2. **Prepare your Video**: 
+   * Open the `Video` folder.
+   * Drop the video file you want to enhance (mp4, mkv, mov, or avi) inside. 
+   * *Note: The script processes all videos in the folder one by one.*
+3. **Start Enhancing**:
+   * **Windows:** Simply double-click **`run.bat`**.
+   * **Linux/Manual:** Open a terminal in the root folder and run:
+     ```bash
+     docker compose up --build
+     ```
+4. **Relax**: AI upscaling is a heavy process. A progress bar will show you the estimated time. Once finished, your video will appear in the `Video` folder with the prefix `Enhanced_`.
+
+---
+
+## 💾 Features & Safety
+* **Resume Support:** If your PC restarts or crashes, just run the tool again. It will automatically detect where it left off and resume from the last saved frame.
+* **Disk Efficiency:** Uses high-quality JPEG frames for temporary storage to save disk space.
+* **Parallel Processing:** Uses a 3-stage threaded pipeline (Reader -> GPU -> Writer) to ensure your GPU is always running at 100% efficiency.
+
+---
+
+## 📜 Acknowledgements & Licenses
+
+This project acts as a wrapper and optimization layer for the following incredible research works. Please respect their respective licenses:
+
+* **Real-ESRGAN**: Developed by [Xintao Wang et al.](https://github.com/xinntao/Real-ESRGAN). Used for background upscaling. (License: Apache 2.0)
+* **GFPGAN**: Developed by [Tencent ARC Lab](https://github.com/TencentARC/GFPGAN). Used for blind face restoration. (License: Apache 2.0)
+* **BasicSR**: Open-source image and video restoration toolbox. (License: Apache 2.0)
+
+**Notice:** This repository includes pre-trained model weights (`RealESRGAN_x4plus.pth`) which are redistributed under the terms of the Apache 2.0 license. All credit for the model architecture and training goes to the original authors linked above.
