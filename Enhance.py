@@ -2,6 +2,7 @@ import subprocess
 import glob
 import os
 import sys
+import shutil
 input_dir = "Video"
 valid_extensions = ("*.mp4", "*.mkv", "*.mov", "*.avi")
 video_files = []
@@ -22,7 +23,7 @@ from realesrgan import RealESRGANer
 from basicsr.archs.rrdbnet_arch import RRDBNet
 from gfpgan import GFPGANer
 from tqdm import tqdm
-
+import json
 class SuppressStdout:
     def __enter__(self):
         self._original_stdout = sys.stdout
@@ -57,49 +58,59 @@ face_enhancer = GFPGANer(
     bg_upsampler=upsampler 
 )
 
-def merge_audio(input_video, enhanced_video, final_output):
-    print("Merging original audio with enhanced video...")
+def merge_audio(frames_pattern, input_video_source, final_output, fps=30):
+    """
+    Stitches PNG frames into a video and attaches audio from the original source.
+    """
+    print(f"🎬 Stitching frames at {fps} FPS and merging audio...")
+    
     cmd = [
         'ffmpeg', '-y',
-        '-i', enhanced_video,  # Video source (no audio)
-        '-i', input_video,     # Audio source
-        '-map', '0:v:0',       # Take video from first input
-        '-map', '1:a:0?',      # Take audio from second input (if exists)
-        '-c:v', 'copy',        # Don't re-encode video
-        '-c:a', 'aac',         # Encode audio to AAC
-        '-shortest',           # Match length
+        '-framerate', str(fps),          # Set input framerate before the image input
+        '-i', frames_pattern,            # Input: frame_%06d.png
+        '-i', input_video_source,        # Input: Original video for audio
+        '-c:v', 'libx264',               # Use H.264 codec
+        '-crf', '18',                    # High quality (17-23 is standard; lower is better)
+        '-pix_fmt', 'yuv420p',           # Ensures compatibility with most players
+        '-map', '0:v:0',                 # Take video from the PNG sequence
+        '-map', '1:a:0?',                # Take audio from source (optional ?)
+        '-c:a', 'aac',                   # Encode audio to AAC
+        '-b:a', '192k',                  # Decent audio bitrate
+        '-shortest',                     # Match the shorter of the two streams
         final_output
     ]
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
+    try:
+        # Run the command
+        process = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print(f"✅ Success! Final video saved to: {final_output}")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ FFmpeg Error:\n{e.stderr}")
 
 def enhance(TargetVideoFileName):
     print("Preparing Video...")
-    OutputVideoFileName = "Enhanced - "+TargetVideoFileName # Changed extension to .mp4
-    TempVideoFile = "temp_no_audio.mp4"
+    base_name = os.path.basename(TargetVideoFileName)
+    OutputVideoFileName = os.path.join(input_dir, f"Enhanced_{base_name}")
+    OutputVideoFileName = os.path.splitext(OutputVideoFileName)[0] + ".mp4"
+    frames_dir = "Video/temp_frames"
+    state_file = "Video/processing_state.json"
+    os.makedirs(frames_dir, exist_ok=True)
     cap = cv2.VideoCapture(TargetVideoFileName)
     fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    start_frame = 0
+    if os.path.exists(state_file):
+        with open(state_file, 'r') as f:
+            data = json.load(f)
+            start_frame = data.get("last_processed_frame", 0)
+            print(f"Resuming from frame: {start_frame}")
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+
     # 2. Process First Frame to get dimensions
-    ret, frame = cap.read()
-    if not ret:
-        raise RuntimeError("Can't read first frame")
-
-    # GFPGAN and RealESRGAN expect OpenCV BGR natively, no conversion needed!
-    print("Enhancing first frame to determine resolution...")
-    _, _, sr_bgr = face_enhancer.enhance(frame, has_aligned=False, only_center_face=False, paste_back=True)
-
-    # 3. Setup Video Writer
-    h, w = sr_bgr.shape[:2]
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(TempVideoFile, fourcc, fps, (w, h))
-
-    # Write first frame
-    out.write(sr_bgr)
-
-    # 4. Process Remaining Frames
     print("Started Enhancing Video (Press 'q' to quit early)...")
     frame_count = 1
-    with tqdm(total=total_frames, initial=1, desc="Enhancing Video", unit="frame") as pbar:
+    with tqdm(total=total_frames, initial=start_frame, desc="Enhancing Video", unit="frame") as pbar:
+        current_frame = start_frame
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -110,28 +121,24 @@ def enhance(TargetVideoFileName):
                 _, _, sr_bgr = face_enhancer.enhance(frame, has_aligned=False, only_center_face=False, paste_back=True)
             
             # Write and display
-            out.write(sr_bgr)
+            frame_name = os.path.join(frames_dir, f"frame_{current_frame:06d}.jpg")
+            cv2.imwrite(frame_name, sr_bgr,[int(cv2.IMWRITE_JPEG_QUALITY), 95])
+            current_frame += 1
             pbar.update(1)
-            # Optional: Resize display windows so they fit on your screen (since it's 4x larger now)
-            #display_frame = cv2.resize(sr_bgr, (w // 4, h // 4)) 
-            #cv2.imshow('Video Output (Scaled Down for Preview)', display_frame)
-            #cv2.imshow('Video Input', frame)
             
-            #frame_count += 1
-            #if frame_count % 10 == 0:
-            #    print(f"Processed {frame_count} frames...")
-
-            #if cv2.waitKey(1) & 0xFF == ord('q'):
-            #    break
+            if current_frame % 10 == 0:
+                with open(state_file, 'w') as f:
+                    json.dump({"last_processed_frame": current_frame}, f)
 
     # 5. Cleanup
     cap.release()
-    out.release()
     #cv2.destroyAllWindows()
     print("Video Generated!\nCreating the final video file with Audio...")
     if os.path.exists(TargetVideoFileName):
-        merge_audio(TargetVideoFileName, TempVideoFile, OutputVideoFileName)
-        os.remove(TempVideoFile)
+        merge_audio('Video/temp_frames/frame_%06d.jpg',TargetVideoFileName, OutputVideoFileName,fps=fps)
+        #shutil.rmtree(frames_dir)
+    if os.path.exists(state_file):
+            os.remove(state_file)
     print("Done! Video saved as:", OutputVideoFileName)
 for f in video_files:
     enhance(f)
