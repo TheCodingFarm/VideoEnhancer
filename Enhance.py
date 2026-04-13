@@ -2,7 +2,6 @@ import subprocess
 import glob
 import os
 import sys
-import shutil
 input_dir = "Video"
 valid_extensions = ("*.mp4", "*.mkv", "*.mov", "*.avi")
 video_files = []
@@ -42,7 +41,6 @@ device = torch.device('cuda' if isCuda else 'cpu')
 if isCuda:
     print("Working with CUDA")
 
-# 1. Initialize Models
 model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
 upsampler = RealESRGANer(
     scale=4,
@@ -55,7 +53,7 @@ upsampler = RealESRGANer(
 )
 
 face_enhancer = GFPGANer(
-    model_path='https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth',
+    model_path='GFPGANv1.3.pth',
     upscale=4,
     arch='clean',
     channel_multiplier=2,
@@ -107,7 +105,7 @@ def frame_reader(video_path, start_frame, input_queue):
     cap.release()
 
 def frame_writer(output_queue, frames_dir, state_file, start_frame, pbar):
-    """Thread 3: Saves processed frames to disk and updates progress."""
+    """Thread 2: Saves processed frames to disk and updates progress."""
     current_idx = start_frame
     while True:
         item = output_queue.get()
@@ -149,7 +147,6 @@ def enhance(TargetVideoFileName):
             data = json.load(f)
             start_frame = data.get("last_processed_frame", 0)
             print(f"Resuming from frame: {start_frame}")
-    #cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     input_queue = Queue(maxsize=30)
     output_queue = Queue(maxsize=30)
 
@@ -159,7 +156,7 @@ def enhance(TargetVideoFileName):
     
     reader_t.start()
     writer_t.start()
-    # 2. Process First Frame to get dimensions
+    # Process First Frame to get dimensions
     print("Started Enhancing Video (Press 'q' to quit early)...")
     try:
         while True:
@@ -180,11 +177,10 @@ def enhance(TargetVideoFileName):
     writer_t.join()
     pbar.close()
     if not interrupted:
-    # 5. Cleanup
+    # Cleanup
         print("Video Generated!\nCreating the final video file with Audio...")
         if os.path.exists(TargetVideoFileName):
-            merge_audio('Video/temp_frames/frame_%06d.jpg',TargetVideoFileName, OutputVideoFileName,fps=fps)
-            #shutil.rmtree(frames_dir)
+            merge_audio('Video/temp_frames/frame_%06d.jpg',TargetVideoFileName, OutputVideoFileName,fps=int(fps))
         if os.path.exists(state_file):
                 os.remove(state_file)
         print("Done! Video saved as:", OutputVideoFileName)
